@@ -1,0 +1,122 @@
+<header class="header">
+  <div class="header-content">
+    <h1 class="header-title">Configurações</h1>
+    <div class="header-actions">
+      <button id="themeToggle" class="btn-icon" aria-label="Alternar tema">
+        <span id="themeIcon">🌙</span>
+      </button>
+      <button id="backToDashboardBtn" class="btn btn-secondary">← Voltar</button>
+      <button id="logoutBtn" class="btn btn-secondary">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="container">
+    <!-- Configurações de Fechamento Automático -->
+    <section class="form-section">
+      <div class="card">
+        <h2 class="card-title">Fechamento Automático Semanal</h2>
+        <p class="card-description">Configure quando a semana será fechada automaticamente.</p>
+        <form id="autoCloseForm" class="transaction-form">
+          <div class="form-group">
+            <label>
+              <input 
+                type="checkbox" 
+                id="autoCloseEnabled" 
+                name="autoCloseEnabled"
+              />
+              Habilitar fechamento automático
+            </label>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="autoCloseDay">Dia da Semana *</label>
+              <select id="autoCloseDay" name="autoCloseDay" required>
+                <option value="0">Domingo</option>
+                <option value="1">Segunda-feira</option>
+                <option value="2">Terça-feira</option>
+                <option value="3">Quarta-feira</option>
+                <option value="4">Quinta-feira</option>
+                <option value="5">Sexta-feira</option>
+                <option value="6">Sábado</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="autoCloseHour">Hora *</label>
+              <input 
+                type="number" 
+                id="autoCloseHour" 
+                name="autoCloseHour" 
+                min="0" 
+                max="23" 
+                required
+                placeholder="12"
+              />
+              <small class="form-hint">Hora em formato 24h (0-23)</small>
+            </div>
+          </div>
+          <div id="autoCloseError" class="error-message" style="display: none;"></div>
+          <div id="autoCloseSuccess" class="success-message" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary">Salvar Configuração</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Configurações de Limite Semanal -->
+    <section class="form-section">
+      <div class="card">
+        <h2 class="card-title">Limite Semanal</h2>
+        <p class="card-description">Configure o valor máximo de gastos permitidos por semana.</p>
+        <form id="weeklyLimitForm" class="transaction-form">
+          <div class="form-group">
+            <label for="weeklyLimit">Limite Semanal (R$) *</label>
+            <input 
+              type="number" 
+              id="weeklyLimit" 
+              name="weeklyLimit" 
+              step="0.01" 
+              min="0.01"
+              placeholder="0,00"
+              required
+            />
+            <small class="form-hint">Deixe vazio ou defina 0 para desabilitar o limite</small>
+          </div>
+          <div id="weeklyLimitError" class="error-message" style="display: none;"></div>
+          <div id="weeklyLimitSuccess" class="success-message" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary">Salvar Limite</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Informações Atuais -->
+    <section class="form-section">
+      <div class="card">
+        <h2 class="card-title">Configurações Atuais</h2>
+        <div class="config-info">
+          <div class="info-item">
+            <strong>Fechamento Automático:</strong>
+            <span id="currentAutoCloseStatus">-</span>
+          </div>
+          <div class="info-item">
+            <strong>Dia de Fechamento:</strong>
+            <span id="currentAutoCloseDay">-</span>
+          </div>
+          <div class="info-item">
+            <strong>Hora de Fechamento:</strong>
+            <span id="currentAutoCloseHour">-</span>
+          </div>
+          <div class="info-item">
+            <strong>Limite Semanal:</strong>
+            <span id="currentWeeklyLimit">-</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <p>&copy; 2024 Controle Financeiro Semanal</p>
+</footer>
+
