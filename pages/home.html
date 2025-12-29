@@ -1,0 +1,85 @@
+<header class="header">
+  <div class="header-content">
+    <h1 class="header-title">Início</h1>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="container">
+    <!-- Resumo Semanal -->
+    <section class="summary-section">
+      <div class="summary-card">
+        <h3 class="summary-title">Semana Atual</h3>
+        <p class="summary-period" id="currentWeekPeriod"></p>
+        <p class="summary-amount" id="currentWeekTotal">R$ 0,00</p>
+      </div>
+      <div class="summary-card">
+        <h3 class="summary-title">Mês Atual</h3>
+        <p class="summary-amount" id="currentMonthTotal">R$ 0,00</p>
+      </div>
+    </section>
+
+    <!-- Formulário de Lançamento -->
+    <section class="form-section">
+      <div class="card">
+        <h2 class="card-title">Novo Lançamento</h2>
+        <form id="transactionForm" class="transaction-form">
+          <div class="form-group">
+            <label for="description">Descrição *</label>
+            <input 
+              type="text" 
+              id="description" 
+              name="description" 
+              placeholder="Ex: Almoço, Transporte, Supermercado..."
+              required
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="amount">Valor (R$) *</label>
+              <input 
+                type="number" 
+                id="amount" 
+                name="amount" 
+                step="0.01" 
+                min="0.01"
+                placeholder="0,00"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="date">Data *</label>
+              <input 
+                type="date" 
+                id="date" 
+                name="date" 
+                required
+              />
+            </div>
+          </div>
+          <div id="formError" class="error-message" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary">Adicionar Lançamento</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Lista de Lançamentos -->
+    <section class="transactions-section">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Gastos da Semana</h2>
+          <button id="closeWeekBtn" class="btn btn-secondary">Fechar Semana</button>
+        </div>
+        <div id="transactionsList" class="transactions-list">
+          <p class="empty-message">Nenhum lançamento registrado nesta semana.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <p>&copy; 2024 Controle Financeiro Semanal</p>
+</footer>
+

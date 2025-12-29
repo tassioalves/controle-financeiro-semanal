@@ -21,10 +21,14 @@ CREATE TABLE transactions (
   description TEXT NOT NULL,
   amount DECIMAL(10, 2) NOT NULL,
   date TIMESTAMPTZ NOT NULL,
-  week_id TEXT NOT NULL,
+  week_id TEXT NOT NULL, -- ID único da semana (não é timestamp)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   user_id UUID REFERENCES auth.users(id) -- Opcional: para multi-usuário
 );
+
+-- Índice para melhorar performance nas consultas por semana
+CREATE INDEX idx_transactions_week_id ON transactions(week_id);
+CREATE INDEX idx_transactions_date ON transactions(date);
 ```
 
 ### Tabela: `closed_weeks`
@@ -32,10 +36,43 @@ Armazena as semanas fechadas.
 
 ```sql
 CREATE TABLE closed_weeks (
-  week_id TEXT PRIMARY KEY,
+  week_id TEXT PRIMARY KEY, -- ID único da semana (não é timestamp)
   closed_at TIMESTAMPTZ DEFAULT NOW(),
   user_id UUID REFERENCES auth.users(id) -- Opcional: para multi-usuário
 );
+```
+
+### Tabela: `week_mapping`
+Armazena o mapeamento entre IDs únicos de semanas e suas datas de início.
+**Importante**: Esta tabela é essencial para o sistema de IDs únicos.
+
+```sql
+CREATE TABLE week_mapping (
+  week_id TEXT PRIMARY KEY, -- ID único da semana (ex: 'week_abc123_xyz789')
+  week_start_date DATE NOT NULL, -- Data de início da semana (yyyy-mm-dd)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID REFERENCES auth.users(id) -- Opcional: para multi-usuário
+);
+
+-- Índice para melhorar performance nas consultas por data
+CREATE INDEX idx_week_mapping_date ON week_mapping(week_start_date);
+```
+
+### Tabela: `current_week`
+Armazena informações da semana atual.
+
+```sql
+CREATE TABLE current_week (
+  id INTEGER PRIMARY KEY DEFAULT 1, -- Sempre 1 (singleton)
+  week_id TEXT NOT NULL, -- ID único da semana atual
+  week_start_date DATE NOT NULL, -- Data de início da semana atual
+  next_close_date DATE, -- Data do próximo fechamento automático
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID REFERENCES auth.users(id) -- Opcional: para multi-usuário
+);
+
+-- Constraint para garantir que só existe uma linha
+CREATE UNIQUE INDEX idx_current_week_singleton ON current_week(id);
 ```
 
 ### Tabela: `settings`
@@ -66,6 +103,8 @@ const AppConfig = {
     tables: {
       transactions: 'transactions',
       closedWeeks: 'closed_weeks',
+      weekMapping: 'week_mapping',
+      currentWeek: 'current_week',
       settings: 'settings'
     }
   }
@@ -106,36 +145,295 @@ const SupabaseProvider = {
   async set(key, value) {
     if (!this.client) await this.init();
     
-    // Mapeia chaves do storage para tabelas do Supabase
-    if (key === 'finance_transactions') {
-      // Implementar lógica de upsert/insert
+    try {
+      // Mapeia chaves do storage para tabelas do Supabase
+      if (key === 'finance_transactions') {
+        // value é um array de transações
+        if (Array.isArray(value) && value.length > 0) {
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.transactions)
+            .upsert(value, { onConflict: 'id' });
+          return !error;
+        }
+        return true;
+      }
+      
+      if (key === 'finance_closed_weeks') {
+        // value é um array de weekIds
+        if (Array.isArray(value)) {
+          // Remove todos os registros existentes e insere os novos
+          const { error: deleteError } = await this.client
+            .from(AppConfig.SUPABASE.tables.closedWeeks)
+            .delete()
+            .neq('week_id', ''); // Deleta todos
+          
+          if (deleteError) return false;
+          
+          if (value.length > 0) {
+            const closedWeeks = value.map(weekId => ({
+              week_id: weekId,
+              closed_at: new Date().toISOString()
+            }));
+            
+            const { error: insertError } = await this.client
+              .from(AppConfig.SUPABASE.tables.closedWeeks)
+              .insert(closedWeeks);
+            
+            return !insertError;
+          }
+        }
+        return true;
+      }
+      
+      if (key === 'finance_week_id_mapping') {
+        // value é um objeto { weekId: 'yyyy-mm-dd' }
+        if (typeof value === 'object' && value !== null) {
+          const mappings = Object.entries(value).map(([weekId, dateString]) => ({
+            week_id: weekId,
+            week_start_date: dateString
+          }));
+          
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.weekMapping)
+            .upsert(mappings, { onConflict: 'week_id' });
+          
+          return !error;
+        }
+        return true;
+      }
+      
+      if (key === 'finance_current_week_start') {
+        // value é uma data ISO string
+        // Atualiza a tabela current_week
+        const { data: currentWeek } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('*')
+          .eq('id', 1)
+          .single();
+        
+        if (currentWeek) {
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.currentWeek)
+            .update({
+              week_start_date: value.split('T')[0], // Converte ISO para DATE
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', 1);
+          
+          return !error;
+        } else {
+          // Cria o registro se não existir
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.currentWeek)
+            .insert({
+              id: 1,
+              week_start_date: value.split('T')[0],
+              week_id: null // Será atualizado quando setCurrentWeekStart for chamado com weekId
+            });
+          
+          return !error;
+        }
+      }
+      
+      if (key === 'finance_current_week_id') {
+        // value é o weekId da semana atual
+        const { data: currentWeek } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('*')
+          .eq('id', 1)
+          .single();
+        
+        if (currentWeek) {
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.currentWeek)
+            .update({
+              week_id: value,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', 1);
+          
+          return !error;
+        }
+        return false;
+      }
+      
+      if (key === 'finance_next_close_date') {
+        // value é uma data ISO string ou null
+        const { data: currentWeek } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('*')
+          .eq('id', 1)
+          .single();
+        
+        if (currentWeek) {
+          const { error } = await this.client
+            .from(AppConfig.SUPABASE.tables.currentWeek)
+            .update({
+              next_close_date: value ? value.split('T')[0] : null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', 1);
+          
+          return !error;
+        }
+        return false;
+      }
+      
+      // Outras configurações vão para a tabela settings
       const { error } = await this.client
-        .from(AppConfig.SUPABASE.tables.transactions)
-        .upsert(value, { onConflict: 'id' });
+        .from(AppConfig.SUPABASE.tables.settings)
+        .upsert({
+          key: key,
+          value: value,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      
       return !error;
+    } catch (error) {
+      console.error('Erro ao salvar no Supabase:', error);
+      return false;
     }
-    // ... outros mapeamentos
   },
 
   async get(key, defaultValue) {
     if (!this.client) await this.init();
     
-    // Mapeia chaves do storage para queries do Supabase
-    if (key === 'finance_transactions') {
+    try {
+      // Mapeia chaves do storage para queries do Supabase
+      if (key === 'finance_transactions') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.transactions)
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        return error ? defaultValue : (data || defaultValue);
+      }
+      
+      if (key === 'finance_closed_weeks') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.closedWeeks)
+          .select('week_id');
+        
+        if (error) return defaultValue;
+        
+        return data ? data.map(row => row.week_id) : defaultValue;
+      }
+      
+      if (key === 'finance_week_id_mapping') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.weekMapping)
+          .select('week_id, week_start_date');
+        
+        if (error) return defaultValue;
+        
+        const mapping = {};
+        if (data) {
+          data.forEach(row => {
+            mapping[row.week_id] = row.week_start_date;
+          });
+        }
+        
+        return Object.keys(mapping).length > 0 ? mapping : defaultValue;
+      }
+      
+      if (key === 'finance_current_week_start') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('week_start_date')
+          .eq('id', 1)
+          .single();
+        
+        if (error || !data || !data.week_start_date) return defaultValue;
+        
+        // Converte DATE para ISO string
+        return new Date(data.week_start_date + 'T00:00:00').toISOString();
+      }
+      
+      if (key === 'finance_current_week_id') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('week_id')
+          .eq('id', 1)
+          .single();
+        
+        if (error || !data) return defaultValue;
+        
+        return data.week_id || defaultValue;
+      }
+      
+      if (key === 'finance_next_close_date') {
+        const { data, error } = await this.client
+          .from(AppConfig.SUPABASE.tables.currentWeek)
+          .select('next_close_date')
+          .eq('id', 1)
+          .single();
+        
+        if (error || !data || !data.next_close_date) return defaultValue;
+        
+        // Converte DATE para ISO string
+        return new Date(data.next_close_date + 'T00:00:00').toISOString();
+      }
+      
+      // Outras configurações vêm da tabela settings
       const { data, error } = await this.client
-        .from(AppConfig.SUPABASE.tables.transactions)
-        .select('*');
-      return error ? defaultValue : data;
+        .from(AppConfig.SUPABASE.tables.settings)
+        .select('value')
+        .eq('key', key)
+        .single();
+      
+      if (error || !data) return defaultValue;
+      
+      return data.value;
+    } catch (error) {
+      console.error('Erro ao ler do Supabase:', error);
+      return defaultValue;
     }
-    // ... outros mapeamentos
   },
 
   async remove(key) {
-    // Implementar remoção
+    if (!this.client) await this.init();
+    
+    try {
+      if (key === 'finance_transactions') {
+        const { error } = await this.client
+          .from(AppConfig.SUPABASE.tables.transactions)
+          .delete()
+          .neq('id', ''); // Deleta todos
+        
+        return !error;
+      }
+      
+      // Para outras chaves, remove da tabela settings
+      const { error } = await this.client
+        .from(AppConfig.SUPABASE.tables.settings)
+        .delete()
+        .eq('key', key);
+      
+      return !error;
+    } catch (error) {
+      console.error('Erro ao remover do Supabase:', error);
+      return false;
+    }
   },
 
   async clear() {
-    // Implementar limpeza (cuidado com multi-usuário!)
+    if (!this.client) await this.init();
+    
+    try {
+      // CUIDADO: Isso apaga TODOS os dados!
+      // Considere adicionar filtro por user_id se usar multi-usuário
+      
+      await this.client.from(AppConfig.SUPABASE.tables.transactions).delete().neq('id', '');
+      await this.client.from(AppConfig.SUPABASE.tables.closedWeeks).delete().neq('week_id', '');
+      await this.client.from(AppConfig.SUPABASE.tables.weekMapping).delete().neq('week_id', '');
+      await this.client.from(AppConfig.SUPABASE.tables.currentWeek).delete().eq('id', 1);
+      await this.client.from(AppConfig.SUPABASE.tables.settings).delete().neq('key', '');
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao limpar Supabase:', error);
+      return false;
+    }
   }
 };
 ```
@@ -148,12 +446,117 @@ Para migrar dados do localStorage para o Supabase:
 2. Use um script de migração para inserir no Supabase
 3. Valide os dados migrados
 
+### Script de Migração (Exemplo)
+
+Se você já tem dados com timestamps como `week_id`, será necessário migrar para IDs únicos:
+
+```javascript
+// Exemplo de script de migração
+async function migrateToUniqueWeekIds() {
+  // 1. Obter todas as transações
+  const transactions = await getFromLocalStorage('finance_transactions');
+  
+  // 2. Agrupar por week_id antigo (timestamp)
+  const weekGroups = {};
+  transactions.forEach(t => {
+    if (!weekGroups[t.week_id]) {
+      weekGroups[t.week_id] = [];
+    }
+    weekGroups[t.week_id].push(t);
+  });
+  
+  // 3. Criar novos IDs únicos e mapeamento
+  const weekMapping = {};
+  const newTransactions = [];
+  
+  for (const [oldWeekId, trans] of Object.entries(weekGroups)) {
+    // Gera novo ID único
+    const newWeekId = 'week_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Calcula data de início da semana (do timestamp antigo)
+    const weekStartDate = new Date(parseInt(oldWeekId));
+    const dateKey = weekStartDate.toISOString().split('T')[0];
+    
+    // Atualiza mapeamento
+    weekMapping[newWeekId] = dateKey;
+    
+    // Atualiza transações
+    trans.forEach(t => {
+      newTransactions.push({
+        ...t,
+        week_id: newWeekId
+      });
+    });
+  }
+  
+  // 4. Migrar closed_weeks
+  const closedWeeks = await getFromLocalStorage('finance_closed_weeks');
+  const newClosedWeeks = closedWeeks.map(oldWeekId => {
+    // Encontra o novo weekId no mapeamento
+    const weekStartDate = new Date(parseInt(oldWeekId));
+    const dateKey = weekStartDate.toISOString().split('T')[0];
+    
+    // Procura no mapeamento
+    for (const [newWeekId, date] of Object.entries(weekMapping)) {
+      if (date === dateKey) {
+        return newWeekId;
+      }
+    }
+    
+    // Se não encontrou, cria novo
+    const newWeekId = 'week_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+    weekMapping[newWeekId] = dateKey;
+    return newWeekId;
+  });
+  
+  // 5. Salvar no Supabase
+  await supabase.from('transactions').upsert(newTransactions);
+  await supabase.from('week_mapping').upsert(
+    Object.entries(weekMapping).map(([weekId, date]) => ({
+      week_id: weekId,
+      week_start_date: date
+    }))
+  );
+  await supabase.from('closed_weeks').upsert(
+    newClosedWeeks.map(weekId => ({
+      week_id: weekId,
+      closed_at: new Date().toISOString()
+    }))
+  );
+}
+```
+
+## 🔑 Sistema de IDs Únicos
+
+**Importante**: O sistema agora usa IDs únicos aleatórios para semanas (ex: `week_abc123_xyz789`) em vez de timestamps. Isso resolve problemas de conflito quando múltiplas semanas começam na mesma data.
+
+### Como funciona:
+
+1. **week_id**: Cada semana tem um ID único gerado aleatoriamente
+2. **week_mapping**: Tabela que mapeia `week_id` → `week_start_date`
+3. **Validações**: Todas as validações usam `week_id`, não datas
+4. **Exibição**: Datas são usadas apenas para exibição e cálculos de período
+
+### Migração de dados existentes:
+
+Se você já tem dados com timestamps como `week_id`, será necessário migrar:
+
+```sql
+-- Script de migração (exemplo)
+-- 1. Criar novos IDs únicos para semanas existentes
+-- 2. Atualizar week_mapping
+-- 3. Atualizar transactions.week_id
+-- 4. Atualizar closed_weeks.week_id
+```
+
 ## ⚠️ Considerações Importantes
 
 1. **Autenticação**: Se implementar multi-usuário, será necessário integrar autenticação do Supabase
 2. **RLS**: Configure Row Level Security para proteger dados dos usuários
 3. **Sincronização**: Dados no Supabase são assíncronos, pode ser necessário adaptar o código para usar async/await
 4. **Offline**: Considere implementar cache local para funcionar offline
+5. **IDs Únicos**: O sistema usa IDs únicos para semanas. Certifique-se de que a tabela `week_mapping` está sempre sincronizada
+6. **Performance**: Índices foram adicionados nas tabelas para melhorar performance. Considere adicionar mais índices conforme necessário
 
 ## 📚 Recursos
 

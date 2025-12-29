@@ -40,6 +40,9 @@ Criar uma solução completa para controle financeiro pessoal que:
 - **Limite semanal**: Sistema de limite semanal com alerta visual quando ultrapassado
 - **Alerta visual**: Total da semana fica vermelho quando o limite é ultrapassado
 - **Persistência de limite**: Limite semanal salvo no localStorage
+- **Página inicial (Home)**: Interface principal para registro de gastos e visualização da semana atual
+- **Dashboard de estatísticas**: Página dedicada para visualização de estatísticas, histórico e limites
+- **Navegação entre páginas**: Sistema de roteamento para navegação fluida entre as páginas
 - **Tela de administração**: Página dedicada para configurações do sistema
 - **Configuração de fechamento automático**: Interface para alterar dia e hora do fechamento semanal
 - **Configuração de limite semanal**: Interface para definir e alterar o limite semanal
@@ -72,7 +75,8 @@ controle-financeiro-semanal/
 │   └── SUPABASE_INTEGRATION.md  # Guia de integração com Supabase
 ├── pages/
 │   ├── login.html          # Página de autenticação (template)
-│   ├── dashboard.html      # Dashboard principal (template)
+│   ├── home.html           # Página inicial (template)
+│   ├── dashboard.html      # Dashboard de estatísticas (template)
 │   └── admin.html          # Página de administração (template)
 ├── assets/                 # Recursos estáticos (imagens, ícones)
 ├── plan.md                 # Plano de desenvolvimento detalhado
@@ -98,6 +102,15 @@ A aplicação funciona completamente offline, sem necessidade de servidor ou con
 - **Senha**: `admin123`
 
 ## 🎨 Características da Interface
+
+### Estrutura de Páginas
+
+A aplicação possui uma estrutura de navegação clara e intuitiva:
+
+- **Página Inicial (Home)**: Interface principal onde o usuário registra novos gastos, visualiza os gastos da semana atual e pode fechar a semana manualmente
+- **Dashboard**: Página de estatísticas com visão geral dos gastos, histórico de semanas anteriores e informações sobre limites semanais
+- **Administração**: Página de configurações para gerenciar fechamento automático e limites semanais
+- **Login**: Página de autenticação para acesso à aplicação
 
 ### Tema Dark/Light
 
@@ -135,7 +148,14 @@ Interface desenvolvida com abordagem **mobile-first**, garantindo:
 - **`storage.js`**: Serviço de gerenciamento de dados usando o provider configurado
 - **`dates.js`**: Gerencia cálculos de datas e semanas
 - **`finance.js`**: Gerencia lançamentos financeiros e controle de semanas
-- **`router.js`**: Sistema de roteamento, carregamento de páginas e proteção de rotas
+- **`router.js`**: Sistema de roteamento SPA (Single Page Application), carregamento dinâmico de páginas, proteção de rotas e inicialização de eventos específicos de cada página
+
+### Páginas HTML
+
+- **`login.html`**: Template da página de autenticação
+- **`home.html`**: Template da página inicial com formulário de lançamentos e lista de gastos da semana
+- **`dashboard.html`**: Template do dashboard de estatísticas com histórico e informações detalhadas
+- **`admin.html`**: Template da página de administração com configurações do sistema
 
 ### Padrões Utilizados
 
@@ -192,5 +212,5 @@ Desenvolvido para controle financeiro pessoal.
 ---
 
 **Versão**: 1.0.0  
-**Status**: Em Desenvolvimento  
+**Status**: Funcional  
 **Última atualização**: 2024

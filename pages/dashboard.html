@@ -1,19 +1,12 @@
 <header class="header">
   <div class="header-content">
-    <h1 class="header-title">Controle Financeiro Semanal</h1>
-    <div class="header-actions">
-      <button id="themeToggle" class="btn-icon" aria-label="Alternar tema">
-        <span id="themeIcon">🌙</span>
-      </button>
-      <button id="adminBtn" class="btn btn-secondary">⚙️ Admin</button>
-      <button id="logoutBtn" class="btn btn-secondary">Sair</button>
-    </div>
+    <h1 class="header-title">Dashboard - Estatísticas</h1>
   </div>
 </header>
 
 <main class="main-content">
   <div class="container">
-    <!-- Resumo Semanal -->
+    <!-- Resumo Geral -->
     <section class="summary-section">
       <div class="summary-card">
         <h3 class="summary-title">Semana Atual</h3>
@@ -24,78 +17,56 @@
         <h3 class="summary-title">Mês Atual</h3>
         <p class="summary-amount" id="currentMonthTotal">R$ 0,00</p>
       </div>
-    </section>
-
-    <!-- Formulário de Lançamento -->
-    <section class="form-section">
-      <div class="card">
-        <h2 class="card-title">Novo Lançamento</h2>
-        <form id="transactionForm" class="transaction-form">
-          <div class="form-group">
-            <label for="description">Descrição *</label>
-            <input 
-              type="text" 
-              id="description" 
-              name="description" 
-              placeholder="Ex: Almoço, Transporte, Supermercado..."
-              required
-            />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="amount">Valor (R$) *</label>
-              <input 
-                type="number" 
-                id="amount" 
-                name="amount" 
-                step="0.01" 
-                min="0.01"
-                placeholder="0,00"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label for="date">Data *</label>
-              <input 
-                type="date" 
-                id="date" 
-                name="date" 
-                required
-              />
-            </div>
-          </div>
-          <div id="formError" class="error-message" style="display: none;"></div>
-          <button type="submit" class="btn btn-primary">Adicionar Lançamento</button>
-        </form>
-      </div>
-    </section>
-
-    <!-- Lista de Lançamentos -->
-    <section class="transactions-section">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Gastos da Semana</h2>
-          <button id="closeWeekBtn" class="btn btn-secondary">Fechar Semana</button>
-        </div>
-        <div id="transactionsList" class="transactions-list">
-          <p class="empty-message">Nenhum lançamento registrado nesta semana.</p>
-        </div>
+      <div class="summary-card">
+        <h3 class="summary-title">Limite Semanal</h3>
+        <p class="summary-amount" id="weeklyLimitDisplay">-</p>
+        <p class="summary-subtitle" id="limitUsage"></p>
       </div>
     </section>
 
     <!-- Histórico de Semanas -->
     <section class="history-section">
       <div class="card">
-        <h2 class="card-title">Histórico de Semanas</h2>
+        <div class="card-header">
+          <h2 class="card-title">Histórico de Semanas</h2>
+        </div>
         <div id="weeksHistorySection" class="weeks-history">
           <p class="empty-message">Carregando histórico...</p>
         </div>
       </div>
     </section>
+
+    <!-- Template para item de semana (oculto) -->
+    <template id="weekHistoryItemTemplate">
+      <div class="week-history-item" data-week-id="">
+        <div class="week-history-content">
+          <div class="week-history-info">
+            <div class="week-history-header">
+              <span class="week-history-period"></span>
+              <span class="closed-badge" style="display: none;">Fechada</span>
+            </div>
+            <span class="week-history-details"></span>
+          </div>
+          <div class="week-history-total"></div>
+          <div class="week-history-expand-icon">▼</div>
+        </div>
+        <div class="week-history-transactions" style="display: none;"></div>
+      </div>
+    </template>
+
+    <!-- Template para transação da semana (oculto) -->
+    <template id="weekTransactionItemTemplate">
+      <div class="week-transaction-item">
+        <div class="week-transaction-info">
+          <span class="week-transaction-description"></span>
+          <span class="week-transaction-date"></span>
+        </div>
+        <div class="week-transaction-amount"></div>
+      </div>
+    </template>
   </div>
 </main>
 
 <footer class="footer">
   <p>&copy; 2024 Controle Financeiro Semanal</p>
 </footer>
-

@@ -31,7 +31,7 @@ async function init() {
 
     // Valida a sessão do usuário e renderiza o conteúdo apropriado
     if (AuthService.isAuthenticated()) {
-      await Router.navigateToDashboard();
+      await Router.navigateToHome();
     } else {
       await Router.navigateToLogin();
     }

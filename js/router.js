@@ -20,9 +20,11 @@ const Router = {
     // Mapeia nomes de páginas para caminhos de arquivos
     const pageMap = {
       'login': 'pages/login.html',
+      'home': 'pages/home.html',
       'dashboard': 'pages/dashboard.html',
       'admin': 'pages/admin.html',
       'pages/login.html': 'pages/login.html',
+      'pages/home.html': 'pages/home.html',
       'pages/dashboard.html': 'pages/dashboard.html',
       'pages/admin.html': 'pages/admin.html'
     };
@@ -87,9 +89,31 @@ const Router = {
     const content = await this.loadPage(pagePath);
     const app = document.getElementById('app');
     if (app) {
-      app.innerHTML = content;
+      // Normaliza o pagePath para o nome simples
+      let pageName = pagePath;
+      if (pagePath.includes('/')) {
+        pageName = pagePath.replace('pages/', '').replace('.html', '');
+      } else if (pagePath.includes('.html')) {
+        pageName = pagePath.replace('.html', '');
+      }
+
+      // Adiciona menu lateral se não for login
+      if (pageName !== 'login' && AuthService.isAuthenticated()) {
+        app.innerHTML = this.createSidebarLayout(content, pageName);
+      } else {
+        app.innerHTML = content;
+      }
+
       this.currentPage = pagePath;
-      this.initializePage(pagePath);
+      // Usa requestAnimationFrame para garantir que o DOM esteja renderizado
+      requestAnimationFrame(() => {
+        // Remove qualquer header-actions que possa existir
+        const headerActions = document.querySelectorAll('.header-actions');
+        headerActions.forEach(el => el.remove());
+        
+        this.initializePage(pagePath);
+        this.initializeSidebar(pageName);
+      });
     }
   },
 
@@ -98,6 +122,13 @@ const Router = {
    */
   async navigateToLogin() {
     await this.navigate('login', false);
+  },
+
+  /**
+   * Navega para a home
+   */
+  async navigateToHome() {
+    await this.navigate('home', true);
   },
 
   /**
@@ -120,14 +151,146 @@ const Router = {
    */
   initializePage(pagePath) {
     // Normaliza o pagePath para o nome simples
-    const pageName = pagePath.replace('pages/', '').replace('.html', '');
+    let pageName = pagePath;
+    if (pagePath.includes('/')) {
+      pageName = pagePath.replace('pages/', '').replace('.html', '');
+    } else if (pagePath.includes('.html')) {
+      pageName = pagePath.replace('.html', '');
+    }
     
     if (pageName === 'login') {
       this.initializeLoginPage();
+    } else if (pageName === 'home') {
+      this.initializeHomePage();
     } else if (pageName === 'dashboard') {
       this.initializeDashboardPage();
     } else if (pageName === 'admin') {
       this.initializeAdminPage();
+    }
+  },
+
+  /**
+   * Cria o layout com sidebar
+   * @param {string} pageContent - Conteúdo HTML da página
+   * @param {string} currentPage - Nome da página atual
+   * @returns {string} HTML com sidebar e conteúdo
+   */
+  createSidebarLayout(pageContent, currentPage) {
+    return `
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Abrir menu">
+        ☰
+      </button>
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">💰 Controle Financeiro</h2>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-link ${currentPage === 'home' ? 'active' : ''}" data-page="home">
+            <span class="sidebar-link-icon">🏠</span>
+            <span>Início</span>
+          </a>
+          <a href="#" class="sidebar-link ${currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
+            <span class="sidebar-link-icon">📊</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="sidebar-link ${currentPage === 'admin' ? 'active' : ''}" data-page="admin">
+            <span class="sidebar-link-icon">⚙️</span>
+            <span>Administração</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="sidebarThemeToggle" class="btn btn-secondary" style="width: 100%;">
+            <span id="sidebarThemeIcon">🌙</span> Alternar Tema
+          </button>
+          <button id="sidebarLogoutBtn" class="btn btn-secondary" style="width: 100%;">
+            Sair
+          </button>
+        </div>
+      </aside>
+      <div class="content-with-sidebar">
+        ${pageContent}
+      </div>
+    `;
+  },
+
+  /**
+   * Inicializa o sidebar e seus eventos
+   * @param {string} currentPage - Nome da página atual
+   */
+  initializeSidebar(currentPage) {
+    // Toggle do sidebar (mobile)
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+    if (sidebarToggle && sidebar && sidebarOverlay) {
+      sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        sidebarOverlay.classList.toggle('active');
+      });
+
+      sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+      });
+    }
+
+    // Links de navegação
+    const navLinks = document.querySelectorAll('.sidebar-link[data-page]');
+    navLinks.forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const page = link.getAttribute('data-page');
+        
+        // Fecha o menu em mobile
+        if (sidebar) {
+          sidebar.classList.remove('open');
+        }
+        if (sidebarOverlay) {
+          sidebarOverlay.classList.remove('active');
+        }
+
+        // Navega para a página
+        if (page === 'home') {
+          await this.navigateToHome();
+        } else if (page === 'dashboard') {
+          await this.navigateToDashboard();
+        } else if (page === 'admin') {
+          await this.navigateToAdmin();
+        }
+      });
+    });
+
+    // Botão de tema no sidebar
+    const sidebarThemeToggle = document.getElementById('sidebarThemeToggle');
+    if (sidebarThemeToggle) {
+      sidebarThemeToggle.addEventListener('click', () => {
+        this.toggleTheme();
+      });
+    }
+
+    // Botão de logout no sidebar
+    const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
+    if (sidebarLogoutBtn) {
+      sidebarLogoutBtn.addEventListener('click', async () => {
+        AuthService.logout();
+        await this.navigateToLogin();
+      });
+    }
+
+    // Atualiza o ícone do tema no sidebar
+    this.updateSidebarThemeIcon();
+  },
+
+  /**
+   * Atualiza ícone do tema no sidebar
+   */
+  updateSidebarThemeIcon() {
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    const sidebarThemeIcon = document.getElementById('sidebarThemeIcon');
+    if (sidebarThemeIcon) {
+      sidebarThemeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
     }
   },
 
@@ -150,7 +313,7 @@ const Router = {
         }
 
         if (AuthService.login(username, password)) {
-          await this.navigateToDashboard();
+          await this.navigateToHome();
         } else {
           if (errorMessage) {
             errorMessage.textContent = 'Usuário ou senha incorretos';
@@ -162,34 +325,19 @@ const Router = {
   },
 
   /**
+   * Inicializa eventos da página home
+   */
+  initializeHomePage() {
+    this.initializeTheme();
+    this.initializeFinanceFeatures();
+  },
+
+  /**
    * Inicializa eventos da página do dashboard
    */
   initializeDashboardPage() {
-    const logoutBtn = document.getElementById('logoutBtn');
-    const themeToggle = document.getElementById('themeToggle');
-    const adminBtn = document.getElementById('adminBtn');
-
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', async () => {
-        AuthService.logout();
-        await this.navigateToLogin();
-      });
-    }
-
-    if (themeToggle) {
-      themeToggle.addEventListener('click', () => {
-        this.toggleTheme();
-      });
-    }
-
-    if (adminBtn) {
-      adminBtn.addEventListener('click', async () => {
-        await this.navigateToAdmin();
-      });
-    }
-
     this.initializeTheme();
-    this.initializeFinanceFeatures();
+    this.initializeStatsFeatures();
   },
 
   /**
@@ -206,7 +354,7 @@ const Router = {
     setInterval(() => {
       if (FinanceService.checkAndAutoCloseWeek()) {
         this.updateDashboardData();
-        this.showSuccessMessage('Semana fechada automaticamente!');
+        this.showSuccessMessage('Semana fechada automaticamente! A nova semana está ativa.');
       }
     }, 60000);
   },
@@ -259,13 +407,65 @@ const Router = {
           return;
         }
 
-        if (confirm('Deseja realmente fechar a semana atual? Esta ação não pode ser desfeita.')) {
-          FinanceService.closeWeek();
-          this.updateDashboardData();
-          this.showSuccessMessage('Semana fechada com sucesso!');
-        }
+        this.showCloseWeekDialog();
       });
     }
+  },
+
+  /**
+   * Exibe diálogo para fechamento manual da semana
+   */
+  showCloseWeekDialog() {
+    // Cria o modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h2 class="modal-title">Fechar Semana</h2>
+        <p class="modal-description">Deseja realmente fechar a semana atual? A nova semana será iniciada a partir de hoje.</p>
+        <div id="closeWeekError" class="error-message" style="display: none;"></div>
+        <div class="modal-actions">
+          <button id="cancelCloseWeekBtn" class="btn btn-secondary">Cancelar</button>
+          <button id="confirmCloseWeekBtn" class="btn btn-primary">Fechar Semana</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const cancelBtn = document.getElementById('cancelCloseWeekBtn');
+    const confirmBtn = document.getElementById('confirmCloseWeekBtn');
+    const errorDiv = document.getElementById('closeWeekError');
+
+    // Fecha o modal ao cancelar
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+
+    // Confirma o fechamento
+    confirmBtn.addEventListener('click', () => {
+      try {
+        const closed = FinanceService.closeWeek(null, null, true);
+        if (closed) {
+          document.body.removeChild(modal);
+          this.updateDashboardData();
+          this.showSuccessMessage('Semana fechada com sucesso! A nova semana está ativa.');
+        } else {
+          errorDiv.textContent = 'Não foi possível fechar a semana. A semana pode já estar fechada.';
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+      }
+    });
+
+    // Fecha o modal ao clicar fora
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
   },
 
   /**
@@ -275,7 +475,6 @@ const Router = {
     this.updateSummary();
     this.updateTransactionsList();
     this.updateCloseWeekButton();
-    this.updateWeeksHistory();
   },
 
   /**
@@ -286,8 +485,7 @@ const Router = {
     const currentWeekTotal = document.getElementById('currentWeekTotal');
     const currentMonthTotal = document.getElementById('currentMonthTotal');
 
-    const currentWeekId = DatesService.getWeekId();
-    const weekPeriod = DatesService.getWeekPeriod(currentWeekId);
+    const weekPeriod = FinanceService.getCurrentWeekPeriod();
     const weekTotal = FinanceService.getCurrentWeekTotal();
     const monthTotal = FinanceService.getCurrentMonthTotal();
 
@@ -388,7 +586,32 @@ const Router = {
    */
   updateWeeksHistory() {
     const historySection = document.getElementById('weeksHistorySection');
-    if (!historySection) return;
+    if (!historySection) {
+      console.warn('weeksHistorySection não encontrado');
+      return;
+    }
+
+    // Procura o template no documento inteiro
+    let template = document.getElementById('weekHistoryItemTemplate');
+    
+    // Se não encontrou, tenta procurar dentro do app
+    if (!template) {
+      const app = document.getElementById('app');
+      if (app) {
+        template = app.querySelector('#weekHistoryItemTemplate');
+      }
+    }
+    
+    // Se ainda não encontrou, tenta procurar em qualquer lugar
+    if (!template) {
+      template = document.querySelector('#weekHistoryItemTemplate');
+    }
+
+    if (!template) {
+      console.error('Template weekHistoryItemTemplate não encontrado. Verifique se o template está no dashboard.html');
+      historySection.innerHTML = '<p class="empty-message">Erro ao carregar histórico. Template não encontrado.</p>';
+      return;
+    }
 
     const weeks = FinanceService.getWeeksHistory(10);
     
@@ -397,25 +620,117 @@ const Router = {
       return;
     }
 
-    historySection.innerHTML = weeks
-      .map(week => {
-        const closedClass = week.isClosed ? 'week-closed' : '';
-        const closedBadge = week.isClosed ? '<span class="closed-badge">Fechada</span>' : '';
+    // Limpa o conteúdo anterior
+    historySection.innerHTML = '';
+
+    // Cria um item para cada semana usando o template
+    weeks.forEach(week => {
+      const item = template.content.cloneNode(true);
+      const weekItem = item.querySelector('.week-history-item');
+      const period = item.querySelector('.week-history-period');
+      const closedBadge = item.querySelector('.closed-badge');
+      const details = item.querySelector('.week-history-details');
+      const total = item.querySelector('.week-history-total');
+      const content = item.querySelector('.week-history-content');
+      const transactionsContainer = item.querySelector('.week-history-transactions');
+
+      if (!weekItem || !period || !details || !total || !content || !transactionsContainer) {
+        console.error('Elementos do template não encontrados');
+        return;
+      }
+
+      // Preenche os dados
+      weekItem.setAttribute('data-week-id', week.weekId);
+      if (week.isClosed) {
+        weekItem.classList.add('week-closed');
+        if (closedBadge) {
+          closedBadge.style.display = 'inline-block';
+        }
+      }
+      period.textContent = week.period;
+      details.textContent = `${week.transactionCount} lançamento(s)`;
+      total.textContent = FinanceService.formatCurrency(week.total);
+
+      // Adiciona evento de clique para expandir/colapsar
+      content.addEventListener('click', () => {
+        const isExpanded = transactionsContainer.style.display !== 'none';
         
-        return `
-          <div class="week-history-item ${closedClass}">
-            <div class="week-history-info">
-              <div class="week-history-header">
-                <span class="week-history-period">${week.period}</span>
-                ${closedBadge}
-              </div>
-              <span class="week-history-details">${week.transactionCount} lançamento(s)</span>
-            </div>
-            <div class="week-history-total">${FinanceService.formatCurrency(week.total)}</div>
-          </div>
-        `;
-      })
-      .join('');
+        if (isExpanded) {
+          // Colapsa
+          transactionsContainer.style.display = 'none';
+          weekItem.classList.remove('expanded');
+        } else {
+          // Expande
+          this.renderWeekTransactions(week.weekId, transactionsContainer);
+          transactionsContainer.style.display = 'block';
+          weekItem.classList.add('expanded');
+        }
+      });
+
+      historySection.appendChild(item);
+    });
+  },
+
+  /**
+   * Renderiza as transações de uma semana específica
+   * @param {string} weekId - ID da semana
+   * @param {HTMLElement} container - Container onde renderizar as transações
+   */
+  renderWeekTransactions(weekId, container) {
+    // Procura o template no documento inteiro
+    let template = document.getElementById('weekTransactionItemTemplate');
+    
+    // Se não encontrou, tenta procurar dentro do app
+    if (!template) {
+      const app = document.getElementById('app');
+      if (app) {
+        template = app.querySelector('#weekTransactionItemTemplate');
+      }
+    }
+    
+    // Se ainda não encontrou, tenta procurar em qualquer lugar
+    if (!template) {
+      template = document.querySelector('#weekTransactionItemTemplate');
+    }
+
+    if (!template) {
+      console.error('Template weekTransactionItemTemplate não encontrado. Verifique se o template está no dashboard.html');
+      container.innerHTML = '<p class="empty-message" style="padding: 1rem; text-align: center; color: var(--text-secondary);">Erro ao carregar transações.</p>';
+      return;
+    }
+
+    const transactions = FinanceService.getTransactionsByWeek(weekId);
+    
+    if (transactions.length === 0) {
+      container.innerHTML = '<p class="empty-message" style="padding: 1rem; text-align: center; color: var(--text-secondary);">Nenhum lançamento nesta semana.</p>';
+      return;
+    }
+
+    // Limpa o container
+    container.innerHTML = '';
+
+    // Ordena transações (mais recente primeiro)
+    const sortedTransactions = transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Cria um item para cada transação usando o template
+    sortedTransactions.forEach(transaction => {
+      const item = template.content.cloneNode(true);
+      const description = item.querySelector('.week-transaction-description');
+      const date = item.querySelector('.week-transaction-date');
+      const amount = item.querySelector('.week-transaction-amount');
+
+      if (!description || !date || !amount) {
+        console.error('Elementos do template de transação não encontrados');
+        return;
+      }
+
+      // Preenche os dados
+      description.textContent = transaction.description;
+      date.textContent = DatesService.formatDate(new Date(transaction.date));
+      amount.textContent = FinanceService.formatCurrency(transaction.amount);
+
+      container.appendChild(item);
+    });
   },
 
   /**
@@ -432,23 +747,54 @@ const Router = {
    * Exibe mensagem de sucesso temporária
    * @param {string} message - Mensagem a exibir
    */
-  showSuccessMessage(message) {
-    const formSection = document.querySelector('.form-section');
-    if (!formSection) return;
-
-    const existingMessage = formSection.querySelector('.success-message');
-    if (existingMessage) {
-      existingMessage.remove();
+  /**
+   * Exibe uma mensagem de sucesso como toast
+   * @param {string} message - Mensagem a exibir
+   * @param {number} duration - Duração em milissegundos (padrão: 3000)
+   */
+  showSuccessMessage(message, duration = 3000) {
+    // Cria ou obtém o container de toasts
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.className = 'toast-container';
+      document.body.appendChild(toastContainer);
     }
 
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.textContent = message;
-    formSection.insertBefore(successDiv, formSection.firstChild);
+    // Cria o toast
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    
+    toast.innerHTML = `
+      <span class="toast-icon">✓</span>
+      <span class="toast-message">${this.escapeHtml(message)}</span>
+      <button class="toast-close" aria-label="Fechar">×</button>
+    `;
 
+    // Adiciona evento de fechar
+    const closeBtn = toast.querySelector('.toast-close');
+    const closeToast = () => {
+      toast.classList.add('toast-exit');
+      setTimeout(() => {
+        toast.remove();
+        // Remove o container se não houver mais toasts
+        if (toastContainer && toastContainer.children.length === 0) {
+          toastContainer.remove();
+        }
+      }, 300);
+    };
+
+    closeBtn.addEventListener('click', closeToast);
+
+    // Adiciona o toast ao container
+    toastContainer.appendChild(toast);
+
+    // Remove automaticamente após a duração especificada
     setTimeout(() => {
-      successDiv.remove();
-    }, 3000);
+      if (toast.parentNode) {
+        closeToast();
+      }
+    }, duration);
   },
 
   /**
@@ -469,6 +815,7 @@ const Router = {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     this.updateThemeIcon(savedTheme);
+    this.updateSidebarThemeIcon();
   },
 
   /**
@@ -492,35 +839,94 @@ const Router = {
     if (themeIcon) {
       themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
     }
+    // Atualiza também o ícone do sidebar
+    this.updateSidebarThemeIcon();
+  },
+
+
+  /**
+   * Inicializa funcionalidades da página de estatísticas
+   */
+  initializeStatsFeatures() {
+    FinanceService.checkAndAutoCloseWeek();
+    this.updateStatsData();
+    
+    setInterval(() => {
+      if (FinanceService.checkAndAutoCloseWeek()) {
+        this.updateStatsData();
+      }
+    }, 60000);
+  },
+
+  /**
+   * Atualiza dados exibidos na página de estatísticas
+   */
+  updateStatsData() {
+    this.updateStatsSummary();
+    // Usa setTimeout para garantir que o DOM esteja completamente renderizado
+    setTimeout(() => {
+      this.updateWeeksHistory();
+    }, 0);
+  },
+
+  /**
+   * Atualiza resumo na página de estatísticas
+   */
+  updateStatsSummary() {
+    const currentWeekPeriod = document.getElementById('currentWeekPeriod');
+    const currentWeekTotal = document.getElementById('currentWeekTotal');
+    const currentMonthTotal = document.getElementById('currentMonthTotal');
+    const weeklyLimitDisplay = document.getElementById('weeklyLimitDisplay');
+    const limitUsage = document.getElementById('limitUsage');
+
+    const weekPeriod = FinanceService.getCurrentWeekPeriod();
+    const weekTotal = FinanceService.getCurrentWeekTotal();
+    const monthTotal = FinanceService.getCurrentMonthTotal();
+    const limit = FinanceService.getWeeklyLimit();
+    const limitUsagePercent = FinanceService.getWeeklyLimitUsage();
+
+    if (currentWeekPeriod) {
+      currentWeekPeriod.textContent = weekPeriod;
+    }
+
+    if (currentWeekTotal) {
+      currentWeekTotal.textContent = FinanceService.formatCurrency(weekTotal);
+      
+      const isExceeded = FinanceService.isWeeklyLimitExceeded();
+      if (isExceeded) {
+        currentWeekTotal.classList.add('limit-exceeded');
+      } else {
+        currentWeekTotal.classList.remove('limit-exceeded');
+      }
+    }
+
+    if (currentMonthTotal) {
+      currentMonthTotal.textContent = FinanceService.formatCurrency(monthTotal);
+    }
+
+    if (weeklyLimitDisplay) {
+      if (limit !== null) {
+        weeklyLimitDisplay.textContent = FinanceService.formatCurrency(limit);
+      } else {
+        weeklyLimitDisplay.textContent = 'Não definido';
+      }
+    }
+
+    if (limitUsage && limit !== null) {
+      const usage = limitUsagePercent || 0;
+      limitUsage.textContent = `${usage.toFixed(1)}% utilizado`;
+      if (usage >= 100) {
+        limitUsage.classList.add('limit-exceeded');
+      } else {
+        limitUsage.classList.remove('limit-exceeded');
+      }
+    }
   },
 
   /**
    * Inicializa eventos da página de administração
    */
   initializeAdminPage() {
-    const logoutBtn = document.getElementById('logoutBtn');
-    const themeToggle = document.getElementById('themeToggle');
-    const backToDashboardBtn = document.getElementById('backToDashboardBtn');
-
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', async () => {
-        AuthService.logout();
-        await this.navigateToLogin();
-      });
-    }
-
-    if (themeToggle) {
-      themeToggle.addEventListener('click', () => {
-        this.toggleTheme();
-      });
-    }
-
-    if (backToDashboardBtn) {
-      backToDashboardBtn.addEventListener('click', async () => {
-        await this.navigateToDashboard();
-      });
-    }
-
     this.initializeTheme();
     this.initializeAdminFeatures();
   },
